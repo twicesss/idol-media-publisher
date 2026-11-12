@@ -8,6 +8,8 @@ A cloud-run project for monitoring a configurable list of X accounts and prepari
 - Reads account handles from `config/accounts.json`.
 - Runs every 30 minutes through GitHub Actions (or manually via workflow dispatch).
 - Uses the official X API to read post metadata and media attachment metadata.
+- Establishes a small first-run baseline so older posts are not treated as fresh candidates.
+- Stores per-account `since_id` cursors and cached X user IDs to check for posts published since the previous poll.
 - Records discovered post IDs and a report in `data/`.
 - Does not download media or publish anything to YouTube yet.
 
