@@ -114,7 +114,7 @@ def main() -> int:
     state = load_json(STATE_PATH, {"seen_post_ids": [], "since_id_by_account": {}})
     seen = set(state.get("seen_post_ids", []))
     cursors = state.get("since_id_by_account", {})
-    user_cache: dict[str, str] = {}
+    user_cache: dict[str, str] = state.get("user_id_by_account", {})
     discovered: list[dict[str, Any]] = []
     baseline: list[dict[str, Any]] = []
     failures: list[dict[str, str]] = []
@@ -171,6 +171,7 @@ def main() -> int:
     save_json(STATE_PATH, {
         "seen_post_ids": sorted(seen),
         "since_id_by_account": cursors,
+        "user_id_by_account": user_cache,
     })
 
     print(json.dumps({
