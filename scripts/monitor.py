@@ -97,12 +97,16 @@ def newest_post_id(posts: list[dict[str, Any]], fallback: str | None) -> str | N
 
 
 def main() -> int:
+    config = load_json(CONFIG_PATH, {})
+    if not config.get("monitoring_enabled", False):
+        print("Monitoring is disabled in config/accounts.json; no X API requests were made.")
+        return 0
+
     token = os.environ.get("X_BEARER_TOKEN", "").strip()
     if not token:
         print("ERROR: X_BEARER_TOKEN secret is not configured.", file=sys.stderr)
         return 2
 
-    config = load_json(CONFIG_PATH, {})
     raw_accounts = config.get("accounts", [])
     if not isinstance(raw_accounts, list) or not raw_accounts:
         print("ERROR: config/accounts.json must contain at least one account.")
