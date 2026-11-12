@@ -148,8 +148,18 @@ def main() -> int:
                 baseline.append({"handle": handle, "baseline_posts": len(posts)})
                 continue
 
-            fresh = [post for post in posts if post["guid"] not in known_ids]
+            # Keep only posts with a video attachment; photo-only posts are ignored.
+            video_posts = [
+                post for post in posts
+                if any(media.get("type") == "video" for media in post.get("media", []))
+            ]
+            fresh = [
+                post for post in video_posts
+                if post["guid"] not in known_ids
+            ]
             newly_discovered.extend(reversed(fresh))
+            # Mark every observed feed entry as seen, including ignored photos,
+            # so photo-only items are not reconsidered on every poll.
             updated_ids = [post["guid"] for post in posts] + list(known_ids)
             seen_by_account[handle] = list(dict.fromkeys(updated_ids))[:MAX_SEEN_PER_ACCOUNT]
         except (requests.RequestException, ET.ParseError, ValueError) as exc:
