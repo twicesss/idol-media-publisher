@@ -1,52 +1,62 @@
 # Idol Media Publisher
 
-A cloud-run project for monitoring a configurable list of X accounts and preparing new post media for a YouTube publishing workflow.
-
-## Zero-cost requirement
-
-This project is being developed under a strict **no paid services / ₹0** constraint. Do not purchase X API credits, enable auto-recharge, or use a paid provider.
-
-X's current official Developer Platform pricing is consumption-based. Public post reads and user lookups have per-resource charges, so the standard X API is **not considered a free data source** unless X explicitly confirms a free grant for your account. The current monitor is deliberately disabled to prevent accidental API requests.
-
-Official X pricing: https://developer.x.com/
+A zero-paid-service experiment for monitoring public X profile media feeds and preparing a later YouTube publishing workflow.
 
 ## Current status
 
-**Phase 1: code scaffold only.** The repository currently contains:
-- A configurable account list in `config/accounts.json`.
-- An X API metadata-monitoring script, gated by `monitoring_enabled: false`.
-- A manually triggered GitHub Actions workflow; there is no scheduled polling.
-- Configuration tests and a README.
+**Phase 1: optional FxEmbed RSS metadata monitor.** Monitoring is disabled by default. The workflow is manual-only and performs no network requests while disabled.
 
-No X API requests are made while `monitoring_enabled` is false. No media is downloaded and nothing is published to YouTube.
+### Candidate free feed source
+
+FxEmbed documents public RSS media feeds in this format:
+
+- `https://fxtwitter.com/{handle}/media.xml`
+
+The documentation says media-only feeds include posts with photos or videos and that RSS entries can expose an image enclosure or a progressive MP4 enclosure when available. The public FxTwitter API documentation says its status API does not require an API key and is free, with fair-use limits.
+
+References:
+- RSS feed documentation: https://docs.fxembed.com/guide/advanced/rss-atom-feeds/
+- API overview and rate limits: https://docs.fxembed.com/api/introduction/
+- X media direct links: https://docs.fxembed.com/guide/url-modifiers/direct-media/
+
+**Important policy uncertainty:** FxEmbed is an independent third-party service, not an X-operated API. Its documentation does not establish that X has authorized it to collect or redistribute X data. X's Terms prohibit scraping without express written permission, and X's automation rules warn against scripting the X website. This feed-based experiment avoids buying X API credits, but we cannot represent it as approved by X or guarantee it is compliant with X's terms. Do not scale or enable unattended reposting without resolving this issue.
+
+X references:
+- Terms of Service: https://x.com/en/tos
+- Automation rules: https://help.x.com/en/rules-and-policies/x-automation
 
 ## Monitored accounts
 
-Edit `config/accounts.json` to add or remove handles. Use usernames only, without the `@` sign. No Python changes are needed.
+Edit `config/accounts.json` to add or remove handles. Use usernames without `@`; no code change is needed.
 
 - `WithPJihyo`
 - `hyoluvsite`
 - `zyo_0201`
 - `parkjihyoo__`
 
-## Free infrastructure notes
+## Enable a manual metadata test
 
-- Standard GitHub-hosted Actions runners are free for public repositories. Avoid larger runners and paid add-ons.
-- YouTube Data API requests have a default quota allocation and generally do not incur per-call charges within quota. Quotas and API policies still apply.
-- The standard YouTube Data API does not expose a general endpoint for creating Community image posts.
-- Any external X monitoring service, proxy, downloader, hosted database, or media API must be checked for a real free tier before use. Do not assume an advertised trial or promotional credit is permanent free access.
+1. Open `config/accounts.json`.
+2. Change `monitoring_enabled` from `false` to `true`.
+3. Commit the change.
+4. Open **Actions → Check X Media Feeds → Run workflow**.
+5. Inspect `data/latest_report.json` and the action logs.
 
-GitHub Actions billing: https://docs.github.com/en/billing/concepts/product-billing/github-actions
-YouTube Data API quota: https://developers.google.com/youtube/data/getting-started
+The first run establishes a baseline and does not mark existing feed entries as new. Later runs report newly observed media posts. The workflow has no automatic schedule at this stage.
 
-## If a genuinely free X source becomes available
+## Zero-cost constraints
 
-Only enable `monitoring_enabled` after verifying, in writing or in the official account console, that the X data access route available to this account has no charge and does not require paid credits. Then add `X_BEARER_TOKEN` as a GitHub repository secret, if that authorized route uses it.
+- No X Developer API token is required by this feed reader.
+- Do not purchase X API credits or use paid RSS providers.
+- GitHub Actions is configured for the public repository's standard hosted runner and manual checks only.
+- The feed provider is a third party; availability, rate limits, and feed completeness may change.
 
-Never commit API tokens or paste them into source files.
+## Publishing stages not implemented
 
-## Important operating notes
+- No MP4 or image files are downloaded yet.
+- No YouTube uploads are performed yet.
+- YouTube video uploads can be implemented with the free YouTube Data API quota and OAuth, subject to quota and policy requirements.
+- The standard YouTube Data API does not provide a general Community image-post creation endpoint, so automatic photo posts are not currently implementable through that API.
+- The first-stage feed parser records enclosure URLs for metadata inspection only.
 
-- This is not yet a functioning unattended publisher. The X monitor is intentionally disabled.
-- Media retrieval must use an authorized source, and video/photo use must be appropriate for the destination platform.
-- Scheduled GitHub Actions runs were removed to avoid unintended repeated API use.
+Never put API tokens or browser cookies in source files or commit them to GitHub.
