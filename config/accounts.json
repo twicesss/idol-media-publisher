@@ -14,5 +14,6 @@
     "enabled": false,
     "videos": "youtube_shorts",
     "photos": "youtube_community"
-  }
+  },
+  "monitoring_enabled": false
 }
