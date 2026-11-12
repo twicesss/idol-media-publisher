@@ -1,17 +1,18 @@
-"""Poll configured X accounts for new posts using the official X API.
+"""Read public media RSS feeds for configured X profiles via FxEmbed.
 
-This initial stage reads post and media metadata only. It does not download
-media or publish to YouTube. First run establishes a baseline; later runs use
-since_id so only posts created after the previous check are returned.
+This optional third-party feed integration reads metadata only. It does not
+download media or publish to YouTube. Monitoring is disabled by default.
 """
 from __future__ import annotations
 
+import html
 import json
-import os
-import sys
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
+import xml.etree.ElementTree as ET
 
 import requests
 
@@ -19,9 +20,9 @@ ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT / "config" / "accounts.json"
 STATE_PATH = ROOT / "data" / "seen_posts.json"
 REPORT_PATH = ROOT / "data" / "latest_report.json"
-X_API = "https://api.x.com/2"
-BASELINE_POST_COUNT = 5
-MAX_NEW_POSTS_PER_POLL = 100
+FEED_BASE = "https://fxtwitter.com"
+USER_AGENT = "IdolMediaPublisher/0.1 (public RSS reader)"
+MAX_SEEN_PER_ACCOUNT = 5000
 
 
 def load_json(path: Path, default: Any) -> Any:
@@ -39,149 +40,136 @@ def save_json(path: Path, payload: Any) -> None:
     temp.replace(path)
 
 
-def api_get(path: str, token: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+def clean_html(value: str) -> str:
+    value = re.sub(r"<br\s*/?>", "\n", value, flags=re.IGNORECASE)
+    value = re.sub(r"</p\s*>", "\n", value, flags=re.IGNORECASE)
+    value = re.sub(r"<[^>]+>", " ", value)
+    return re.sub(r"\s+", " ", html.unescape(value)).strip()
+
+
+def classify_media(url: str, media_type: str) -> str:
+    media_type = (media_type or "").lower()
+    path = url.lower().split("?", 1)[0]
+    if "video" in media_type or path.endswith((".mp4", ".m4v", ".mov")):
+        return "video"
+    if "image" in media_type or path.endswith((".jpg", ".jpeg", ".png", ".webp", ".gif")):
+        return "photo"
+    return "unknown"
+
+
+def parse_feed(xml_text: str, handle: str) -> list[dict[str, Any]]:
+    root = ET.fromstring(xml_text)
+    items = root.findall("./channel/item")
+    parsed: list[dict[str, Any]] = []
+
+    for item in items:
+        guid = (item.findtext("guid") or item.findtext("link") or "").strip()
+        link = (item.findtext("link") or guid).strip()
+        title = clean_html(item.findtext("title") or "")
+        description = clean_html(item.findtext("description") or "")
+        published = (item.findtext("pubDate") or "").strip()
+        media: list[dict[str, str]] = []
+
+        enclosure = item.find("enclosure")
+        if enclosure is not None:
+            url = (enclosure.attrib.get("url") or "").strip()
+            kind = classify_media(url, enclosure.attrib.get("type", ""))
+            if url:
+                media.append({"url": url, "type": kind})
+
+        for element in item.iter():
+            if element.tag.endswith("content") or element.tag.endswith("thumbnail"):
+                url = (element.attrib.get("url") or "").strip()
+                kind = classify_media(url, element.attrib.get("type", ""))
+                if url and all(existing["url"] != url for existing in media):
+                    media.append({"url": url, "type": kind})
+
+        if not guid:
+            continue
+        post_id_match = re.search(r"/status/(\d+)", link or guid)
+        parsed.append({
+            "source_handle": handle,
+            "post_id": post_id_match.group(1) if post_id_match else guid,
+            "guid": guid,
+            "post_url": link,
+            "title": title,
+            "text": description or title,
+            "published": published,
+            "media": media,
+            "media_types": sorted({entry["type"] for entry in media}),
+            "status": "discovered_metadata_only",
+        })
+    return parsed
+
+
+def fetch_media_feed(handle: str, count: int) -> list[dict[str, Any]]:
+    encoded_handle = quote(handle.lstrip("@"), safe="")
+    url = f"{FEED_BASE}/{encoded_handle}/media.xml"
     response = requests.get(
-        f"{X_API}{path}",
-        headers={"Authorization": f"Bearer {token}"},
-        params=params,
+        url,
+        params={"count": max(1, min(count, 100))},
+        headers={"User-Agent": USER_AGENT, "Accept": "application/rss+xml, application/xml"},
         timeout=30,
     )
     response.raise_for_status()
-    return response.json()
-
-
-def get_user_id(handle: str, token: str, user_cache: dict[str, str]) -> str:
-    if handle in user_cache:
-        return user_cache[handle]
-    result = api_get(
-        f"/users/by/username/{handle}",
-        token,
-        {"user.fields": "id,username,name,protected"},
-    )
-    user = result.get("data")
-    if not user or user.get("protected"):
-        raise RuntimeError(f"Account @{handle} is unavailable or protected.")
-    user_id = user["id"]
-    user_cache[handle] = user_id
-    return user_id
-
-
-def fetch_recent_posts(
-    user_id: str,
-    token: str,
-    since_id: str | None = None,
-) -> list[dict[str, Any]]:
-    params: dict[str, Any] = {
-        "max_results": MAX_NEW_POSTS_PER_POLL if since_id else BASELINE_POST_COUNT,
-        "exclude": "replies,retweets",
-        "tweet.fields": "id,text,created_at,attachments,referenced_tweets",
-        "expansions": "attachments.media_keys",
-        "media.fields": "media_key,type,url,preview_image_url,duration_ms,variants",
-    }
-    if since_id:
-        params["since_id"] = since_id
-
-    result = api_get(f"/users/{user_id}/tweets", token, params)
-    posts = result.get("data", [])
-    media = result.get("includes", {}).get("media", [])
-    media_by_key = {item["media_key"]: item for item in media}
-    for post in posts:
-        keys = post.get("attachments", {}).get("media_keys", [])
-        post["media"] = [media_by_key[key] for key in keys if key in media_by_key]
-    return posts
-
-
-def newest_post_id(posts: list[dict[str, Any]], fallback: str | None) -> str | None:
-    ids = [str(post["id"]) for post in posts if post.get("id")]
-    return max(ids, key=int) if ids else fallback
+    return parse_feed(response.text, handle)
 
 
 def main() -> int:
     config = load_json(CONFIG_PATH, {})
     if not config.get("monitoring_enabled", False):
-        print("Monitoring is disabled in config/accounts.json; no X API requests were made.")
+        print("Monitoring is disabled in config/accounts.json; no feed requests were made.")
         return 0
-
-    token = os.environ.get("X_BEARER_TOKEN", "").strip()
-    if not token:
-        print("ERROR: X_BEARER_TOKEN secret is not configured.", file=sys.stderr)
+    if config.get("feed_provider") != "fxembed":
+        print("ERROR: unsupported feed_provider; expected fxembed.")
         return 2
 
-    raw_accounts = config.get("accounts", [])
-    if not isinstance(raw_accounts, list) or not raw_accounts:
+    accounts = config.get("accounts", [])
+    if not isinstance(accounts, list) or not accounts:
         print("ERROR: config/accounts.json must contain at least one account.")
         return 2
 
-    accounts = list(dict.fromkeys(
-        str(value).strip().lstrip("@") for value in raw_accounts if str(value).strip()
-    ))
-    state = load_json(STATE_PATH, {"seen_post_ids": [], "since_id_by_account": {}})
-    seen = set(state.get("seen_post_ids", []))
-    cursors = state.get("since_id_by_account", {})
-    user_cache: dict[str, str] = state.get("user_id_by_account", {})
-    discovered: list[dict[str, Any]] = []
+    feed_count = int(config.get("feed_count", 100))
+    state = load_json(STATE_PATH, {"seen_by_account": {}})
+    seen_by_account = state.setdefault("seen_by_account", {})
+    newly_discovered: list[dict[str, Any]] = []
     baseline: list[dict[str, Any]] = []
     failures: list[dict[str, str]] = []
 
-    for handle in accounts:
+    for raw_handle in accounts:
+        handle = str(raw_handle).strip().lstrip("@")
+        if not handle:
+            continue
         try:
-            user_id = get_user_id(handle, token, user_cache)
-            cursor = cursors.get(handle)
-            posts = fetch_recent_posts(user_id, token, cursor)
-            next_cursor = newest_post_id(posts, cursor)
-
-            if cursor is None:
-                # First run records the newest five IDs as baseline, not upload candidates.
-                for post in posts:
-                    if post.get("id"):
-                        seen.add(str(post["id"]))
+            posts = fetch_media_feed(handle, feed_count)
+            known_ids = set(seen_by_account.get(handle, []))
+            if handle not in seen_by_account:
+                seen_by_account[handle] = [post["guid"] for post in posts][-MAX_SEEN_PER_ACCOUNT:]
                 baseline.append({"handle": handle, "baseline_posts": len(posts)})
-            else:
-                for post in posts:
-                    post_id = str(post.get("id", ""))
-                    if not post_id or post_id in seen:
-                        continue
-                    attachments = post.get("media", [])
-                    media_types = sorted({item.get("type", "unknown") for item in attachments})
-                    discovered.append({
-                        "source_handle": handle,
-                        "post_id": post_id,
-                        "text": post.get("text", ""),
-                        "created_at": post.get("created_at"),
-                        "post_url": f"https://x.com/{handle}/status/{post_id}",
-                        "media_types": media_types,
-                        "media_metadata": attachments,
-                        "status": "discovered_metadata_only",
-                    })
-                    seen.add(post_id)
+                continue
 
-            if next_cursor:
-                cursors[handle] = next_cursor
-
-        except requests.HTTPError as exc:
-            failures.append({"handle": handle, "error": str(exc)})
-        except (requests.RequestException, KeyError, ValueError, RuntimeError) as exc:
+            fresh = [post for post in posts if post["guid"] not in known_ids]
+            newly_discovered.extend(reversed(fresh))
+            updated_ids = [post["guid"] for post in posts] + list(known_ids)
+            seen_by_account[handle] = list(dict.fromkeys(updated_ids))[:MAX_SEEN_PER_ACCOUNT]
+        except (requests.RequestException, ET.ParseError, ValueError) as exc:
             failures.append({"handle": handle, "error": str(exc)})
 
     report = {
         "checked_at": datetime.now(timezone.utc).isoformat(),
+        "feed_provider": "FxEmbed public RSS",
         "accounts_configured": len(accounts),
         "baseline": baseline,
-        "new_posts": discovered,
+        "new_media_posts": newly_discovered,
         "failures": failures,
-        "note": "Metadata discovery only. Media retrieval and publishing are disabled.",
+        "note": "Metadata only. No media downloaded and no YouTube publishing performed.",
     }
     save_json(REPORT_PATH, report)
-    save_json(STATE_PATH, {
-        "seen_post_ids": sorted(seen),
-        "since_id_by_account": cursors,
-        "user_id_by_account": user_cache,
-    })
-
+    save_json(STATE_PATH, seen_by_account)
     print(json.dumps({
         "accounts_checked": len(accounts),
         "baseline_accounts": len(baseline),
-        "new_posts": len(discovered),
+        "new_media_posts": len(newly_discovered),
         "failures": len(failures),
         "report": str(REPORT_PATH.relative_to(ROOT)),
     }, indent=2))
