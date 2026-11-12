@@ -2,18 +2,23 @@
 
 A cloud-run project for monitoring a configurable list of X accounts and preparing new post media for a YouTube publishing workflow.
 
+## Zero-cost requirement
+
+This project is being developed under a strict **no paid services / ₹0** constraint. Do not purchase X API credits, enable auto-recharge, or use a paid provider.
+
+X's current official Developer Platform pricing is consumption-based. Public post reads and user lookups have per-resource charges, so the standard X API is **not considered a free data source** unless X explicitly confirms a free grant for your account. The current monitor is deliberately disabled to prevent accidental API requests.
+
+Official X pricing: https://developer.x.com/
+
 ## Current status
 
-**Phase 1: X post metadata monitoring scaffold.** The current workflow:
-- Reads account handles from `config/accounts.json`.
-- Runs every 30 minutes through GitHub Actions (or manually via workflow dispatch).
-- Uses the official X API to read post metadata and media attachment metadata.
-- Establishes a small first-run baseline so older posts are not treated as fresh candidates.
-- Stores per-account `since_id` cursors and cached X user IDs to check for posts published since the previous poll.
-- Records discovered post IDs and a report in `data/`.
-- Does not download media or publish anything to YouTube yet.
+**Phase 1: code scaffold only.** The repository currently contains:
+- A configurable account list in `config/accounts.json`.
+- An X API metadata-monitoring script, gated by `monitoring_enabled: false`.
+- A manually triggered GitHub Actions workflow; there is no scheduled polling.
+- Configuration tests and a README.
 
-Media retrieval and publishing are separate implementation stages. X media metadata is not itself a guaranteed downloadable video file.
+No X API requests are made while `monitoring_enabled` is false. No media is downloaded and nothing is published to YouTube.
 
 ## Monitored accounts
 
@@ -24,37 +29,24 @@ Edit `config/accounts.json` to add or remove handles. Use usernames only, withou
 - `zyo_0201`
 - `parkjihyoo__`
 
-## Setup
+## Free infrastructure notes
 
-1. Create an X Developer project/app and obtain an API Bearer Token with permission to read the posts this app needs.
-2. In this GitHub repository, open **Settings → Secrets and variables → Actions**.
-3. Add a repository secret named `X_BEARER_TOKEN` with the Bearer Token value.
-4. Open **Actions → Monitor X Accounts → Run workflow** to perform a test run.
-5. Scheduled checks run every 30 minutes. If the secret is not configured, live monitoring is skipped safely.
+- Standard GitHub-hosted Actions runners are free for public repositories. Avoid larger runners and paid add-ons.
+- YouTube Data API requests have a default quota allocation and generally do not incur per-call charges within quota. Quotas and API policies still apply.
+- The standard YouTube Data API does not expose a general endpoint for creating Community image posts.
+- Any external X monitoring service, proxy, downloader, hosted database, or media API must be checked for a real free tier before use. Do not assume an advertised trial or promotional credit is permanent free access.
+
+GitHub Actions billing: https://docs.github.com/en/billing/concepts/product-billing/github-actions
+YouTube Data API quota: https://developers.google.com/youtube/data/getting-started
+
+## If a genuinely free X source becomes available
+
+Only enable `monitoring_enabled` after verifying, in writing or in the official account console, that the X data access route available to this account has no charge and does not require paid credits. Then add `X_BEARER_TOKEN` as a GitHub repository secret, if that authorized route uses it.
 
 Never commit API tokens or paste them into source files.
 
-## X API cost note
-
-X currently uses pay-per-usage credits. Its official pricing page lists post reads at **US$0.005 per returned post** and user reads at **US$0.010 per returned user**. Repeated resources are generally deduplicated within a 24-hour UTC window, but X describes this as a soft guarantee. Check the Developer Console for current rates and set a spending limit before enabling monitoring.
-
-Official pricing: https://docs.x.com/x-api/getting-started/pricing
-
-## YouTube integration
-
-Video uploads will use the YouTube Data API after OAuth setup. Google's current documentation describes a default daily allowance of 100 video uploads in its dedicated upload quota bucket. Actual access remains subject to account, project, and policy requirements.
-
-- Upload endpoint: https://developers.google.com/youtube/data/reference/rest/v3/videos/insert
-- API overview: https://developers.google.com/youtube/data/getting-started
-
-The standard YouTube Data API does not expose a general endpoint for creating Community image posts. Photo publishing needs a separately verified supported route before it can be automated.
-
-## Local checks
-
-Run `python -m unittest discover -s tests -v`.
-
 ## Important operating notes
 
-- GitHub Actions scheduled jobs run on GitHub-hosted runners and can be delayed during high load.
-- This project is not yet a fully unattended publisher; current code discovers metadata only.
+- This is not yet a functioning unattended publisher. The X monitor is intentionally disabled.
 - Media retrieval must use an authorized source, and video/photo use must be appropriate for the destination platform.
+- Scheduled GitHub Actions runs were removed to avoid unintended repeated API use.
