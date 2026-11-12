@@ -1,0 +1,18 @@
+{
+  "accounts": [
+    "WithPJihyo",
+    "hyoluvsite",
+    "zyo_0201",
+    "parkjihyoo__"
+  ],
+  "poll_interval_minutes": 30,
+  "media_types": {
+    "videos": true,
+    "photos": true
+  },
+  "publishing": {
+    "enabled": false,
+    "videos": "youtube_shorts",
+    "photos": "youtube_community"
+  }
+}
