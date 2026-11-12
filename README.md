@@ -1,6 +1,6 @@
 # Idol Media Publisher
 
-A zero-paid-service experiment for monitoring public X profile media feeds and preparing a later YouTube publishing workflow.
+A zero-paid-service experiment for monitoring public X profile video feeds and preparing a later YouTube publishing workflow.
 
 ## Current status
 
@@ -12,7 +12,7 @@ FxEmbed documents public RSS media feeds in this format:
 
 - `https://fxtwitter.com/{handle}/media.xml`
 
-The documentation says media-only feeds include posts with photos or videos and that RSS entries can expose an image enclosure or a progressive MP4 enclosure when available. The public FxTwitter API documentation says its status API does not require an API key and is free, with fair-use limits.
+The documentation says media-only feeds include posts with videos and that RSS entries can expose an progressive MP4 enclosure when available. The public FxTwitter API documentation says its status API does not require an API key and is free, with fair-use limits.
 
 References:
 - RSS feed documentation: https://docs.fxembed.com/guide/advanced/rss-atom-feeds/
@@ -42,7 +42,7 @@ Edit `config/accounts.json` to add or remove handles. Use usernames without `@`;
 4. Open **Actions → Check X Media Feeds → Run workflow**.
 5. Inspect `data/latest_report.json` and the action logs.
 
-The first run establishes a baseline and does not mark existing feed entries as new. Later runs report newly observed media posts. The workflow has no automatic schedule at this stage.
+The first run establishes a baseline and does not mark existing feed entries as new. Later runs report newly observed video posts. The workflow has no automatic schedule at this stage.
 
 ## Zero-cost constraints
 
@@ -53,10 +53,10 @@ The first run establishes a baseline and does not mark existing feed entries as 
 
 ## Publishing stages not implemented
 
-- No MP4 or image files are downloaded yet.
+- No MP4 files are downloaded yet; photo-only posts are ignored.
 - No YouTube uploads are performed yet.
 - YouTube video uploads can be implemented with the free YouTube Data API quota and OAuth, subject to quota and policy requirements.
-- The standard YouTube Data API does not provide a general Community image-post creation endpoint, so automatic photo posts are not currently implementable through that API.
+- Photo posts are intentionally out of scope and ignored.
 - The first-stage feed parser records enclosure URLs for metadata inspection only.
 
 Never put API tokens or browser cookies in source files or commit them to GitHub.
