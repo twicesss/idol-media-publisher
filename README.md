@@ -4,7 +4,7 @@ A zero-paid-service experiment for monitoring public X profile video feeds and p
 
 ## Current status
 
-**Phase 1: optional FxEmbed RSS metadata monitor.** Monitoring is disabled by default. The workflow is manual-only and performs no network requests while disabled.
+**Phase 1: optional video-only FxEmbed RSS metadata monitor.** Photo-only posts are ignored. Monitoring is disabled by default. The workflow is manual-only and performs no network requests while disabled.
 
 ### Candidate free feed source
 
@@ -12,14 +12,14 @@ FxEmbed documents public RSS media feeds in this format:
 
 - `https://fxtwitter.com/{handle}/media.xml`
 
-The documentation says media-only feeds include posts with videos and that RSS entries can expose an progressive MP4 enclosure when available. The public FxTwitter API documentation says its status API does not require an API key and is free, with fair-use limits.
+The documentation says media-only feeds include posts with photos or videos, and that an RSS entry can expose the first suitable attachment as an enclosure; videos may be progressive MP4 when available. The RSS documentation does not publish a paid subscription requirement, but it also does not promise a permanent service-level free tier. Availability and limits may change.
 
 References:
 - RSS feed documentation: https://docs.fxembed.com/guide/advanced/rss-atom-feeds/
 - API overview and rate limits: https://docs.fxembed.com/api/introduction/
 - X media direct links: https://docs.fxembed.com/guide/url-modifiers/direct-media/
 
-**Important policy uncertainty:** FxEmbed is an independent third-party service, not an X-operated API. Its documentation does not establish that X has authorized it to collect or redistribute X data. X's Terms prohibit scraping without express written permission, and X's automation rules warn against scripting the X website. This feed-based experiment avoids buying X API credits, but we cannot represent it as approved by X or guarantee it is compliant with X's terms. Do not scale or enable unattended reposting without resolving this issue.
+**Important policy uncertainty:** FxEmbed is an independent third-party service, not an X-operated API. Its documentation does not establish that X has authorized it to collect or redistribute X data. X's Terms prohibit scraping without express written permission. This feed-based experiment avoids X API credits, but we cannot represent it as approved by X or guarantee it is compliant with X's terms. Keep monitoring disabled unless the access method is confirmed to be permitted.
 
 X references:
 - Terms of Service: https://x.com/en/tos
