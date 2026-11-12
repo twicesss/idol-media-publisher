@@ -1,4 +1,4 @@
-name: Monitor X Accounts
+name: Check X Media Feeds
 
 on:
   workflow_dispatch:
@@ -7,11 +7,11 @@ permissions:
   contents: write
 
 concurrency:
-  group: x-account-monitor
+  group: x-media-feed-check
   cancel-in-progress: false
 
 jobs:
-  monitor:
+  check-feeds:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -29,15 +29,8 @@ jobs:
       - name: Validate configuration
         run: python -m unittest discover -s tests -v
 
-      - name: Monitor configured accounts
-        env:
-          X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
-        run: |
-          if [ -z "$X_BEARER_TOKEN" ]; then
-            echo "::notice::X_BEARER_TOKEN is not configured yet; skipping live monitoring."
-            exit 0
-          fi
-          python scripts/monitor.py
+      - name: Check media feeds
+        run: python scripts/monitor.py
 
       - name: Save discovery state and report
         run: |
@@ -46,7 +39,7 @@ jobs:
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add -f data/seen_posts.json data/latest_report.json
             if ! git diff --cached --quiet; then
-              git commit -m "chore: update X monitoring state"
+              git commit -m "chore: update media feed monitoring state"
               git push
             fi
           fi
