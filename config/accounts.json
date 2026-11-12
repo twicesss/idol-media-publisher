@@ -9,9 +9,12 @@
   "feed_provider": "fxembed",
   "feed_count": 100,
   "monitoring_enabled": false,
+  "media_types": {
+    "videos": true,
+    "photos": false
+  },
   "publishing": {
     "enabled": false,
-    "videos": "youtube_shorts",
-    "photos": "youtube_community"
+    "videos": "youtube_shorts"
   }
 }
