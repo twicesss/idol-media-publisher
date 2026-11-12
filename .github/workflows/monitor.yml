@@ -28,17 +28,27 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Validate configuration
+        run: python -m unittest discover -s tests -v
+
       - name: Monitor configured accounts
         env:
           X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
-        run: python scripts/monitor.py
+        run: |
+          if [ -z "$X_BEARER_TOKEN" ]; then
+            echo "::notice::X_BEARER_TOKEN is not configured yet; skipping live monitoring."
+            exit 0
+          fi
+          python scripts/monitor.py
 
       - name: Save discovery state and report
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/seen_posts.json data/latest_report.json
-          if ! git diff --cached --quiet; then
-            git commit -m "chore: update X monitoring state"
-            git push
+          if [ -f data/seen_posts.json ] || [ -f data/latest_report.json ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -f data/seen_posts.json data/latest_report.json
+            if ! git diff --cached --quiet; then
+              git commit -m "chore: update X monitoring state"
+              git push
+            fi
           fi
